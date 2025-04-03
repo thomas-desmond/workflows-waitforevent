@@ -9,13 +9,30 @@
 	"compatibility_date": "2024-10-22",
 	"observability": {
 		"enabled": true,
-		"head_sampling_rate": 1
+		"head_sampling_rate": 1,
+
+	},
+	"ai": {
+		"binding": "AI"
 	},
 	"workflows": [
 		{
 			"name": "workflows-starter",
 			"binding": "MY_WORKFLOW",
 			"class_name": "MyWorkflow"
+		}
+	],
+	"r2_buckets": [
+		{
+			"bucket_name": "workflow-demo",
+			"binding": "workflow_demo_bucket"
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "workflows-demo-d1",
+			"database_id": "66e4fbe9-06ac-4548-abba-2dc42088e13a"
 		}
 	]
 	/**
