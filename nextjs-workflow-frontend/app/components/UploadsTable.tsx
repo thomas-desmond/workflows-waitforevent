@@ -46,7 +46,16 @@ export default function UploadsTable({ uploadedImages }: UploadsTableProps) {
           {[...uploadedImages].reverse().map((image, index) => (
             <tr key={index} className="group">
               <td className="px-8 py-6 text-white/70 group-hover:text-white/90">{image.fileName}</td>
-              <td className="px-8 py-6 text-white/70 group-hover:text-white/90">{image.status}</td>
+              <td className="px-8 py-6">
+                <span className={
+                  image.status === 'queued' ? 'text-yellow-400' :
+                  image.status === 'running' ? 'text-blue-400' :
+                  image.status === 'complete' ? 'text-green-400' :
+                  'text-white/70'
+                }>
+                  {image.status}
+                </span>
+              </td>
               <td className="px-8 py-6 text-white/70 group-hover:text-white/90">
                 {image.aiTags ? image.aiTags : 'N/A'}
               </td>
