@@ -43,12 +43,12 @@ export default function UploadsTable({ uploadedImages }: UploadsTableProps) {
           </tr>
         </thead>
         <tbody className="divide-y divide-white/10">
-          {uploadedImages.map((image, index) => (
+          {[...uploadedImages].reverse().map((image, index) => (
             <tr key={index} className="group">
               <td className="px-8 py-6 text-white/70 group-hover:text-white/90">{image.fileName}</td>
               <td className="px-8 py-6 text-white/70 group-hover:text-white/90">{image.status}</td>
               <td className="px-8 py-6 text-white/70 group-hover:text-white/90">
-                {image.aiTags ? image.aiTags.join(', ') : 'N/A'}
+                {image.aiTags ? image.aiTags : 'N/A'}
               </td>
               <td className="px-8 py-6">
                 {aiTagStates[image.instanceId] === 'sent' ? (

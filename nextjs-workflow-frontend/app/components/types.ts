@@ -1,7 +1,7 @@
 export interface UploadedImage {
   fileName: string;
   status: string;
-  aiTags?: string[];
+  aiTags?: string;
   instanceId: string;
 }
 

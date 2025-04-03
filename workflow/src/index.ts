@@ -1,4 +1,3 @@
-// <docs-tag name="full-workflow-example">
 import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:workers';
 
 type Env = {
@@ -16,6 +15,12 @@ type Params = {
 		name: string;
 		type: string;
 	};
+};
+
+const corsHeaders = {
+	'Access-Control-Allow-Origin': '*',
+	'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+	'Access-Control-Allow-Headers': 'Content-Type',
 };
 
 // <docs-tag name="workflow-entrypoint">
@@ -71,7 +76,7 @@ export default {
 	async fetch(req: Request, env: Env): Promise<Response> {
 		const url = new URL(req.url);
 
-		// Handle image uploads
+		// Handle Creating new image Workflow
 		if (req.method === 'POST') {
 			try {
 				// Check if the request contains form data
@@ -110,11 +115,7 @@ export default {
 						message: 'Image upload started successfully',
 					},
 					{
-						headers: {
-							'Access-Control-Allow-Origin': '*',
-							'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-							'Access-Control-Allow-Headers': 'Content-Type',
-						},
+						headers: corsHeaders,
 					}
 				);
 
@@ -132,12 +133,39 @@ export default {
 		// Handle OPTIONS request for CORS preflight
 		if (req.method === 'OPTIONS') {
 			return new Response(null, {
-				headers: {
-					'Access-Control-Allow-Origin': '*',
-					'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-					'Access-Control-Allow-Headers': 'Content-Type',
-				},
+				headers: corsHeaders,
 			});
+		}
+		if (url.pathname === '/tags') {
+			const instanceId = url.searchParams.get('instanceId');
+			if (!instanceId) {
+				return new Response('Missing instanceId parameter', {
+					status: 400,
+					headers: corsHeaders
+				});
+			}
+
+			try {
+				const result = await env.DB.prepare('SELECT ImageTags FROM Images WHERE InstanceID = ?')
+					.bind(instanceId)
+					.first();
+
+				return Response.json(
+					{
+						instanceId,
+						tags: result?.ImageTags || null
+					},
+					{
+						headers: corsHeaders
+					}
+				);
+			} catch (error) {
+				console.error('Error fetching tags:', error);
+				return new Response('Error fetching tags', {
+					status: 500,
+					headers: corsHeaders
+				});
+			}
 		}
 
 		// Get the status of an existing instance, if provided
@@ -149,22 +177,15 @@ export default {
 					status: await instance.status(),
 				},
 				{
-					headers: {
-						'Access-Control-Allow-Origin': '*',
-						'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-						'Access-Control-Allow-Headers': 'Content-Type',
-					},
+					headers: corsHeaders,
 				}
 			);
 		}
 
-		// Spawn a new instance and return the ID and status
-		const instance = await env.MY_WORKFLOW.create();
-		return Response.json({
-			id: instance.id,
-			details: await instance.status(),
-		});
+		// Handle /tags endpoint
+
+
+		return new Response('Invalid Request', { status: 400 });
 	},
 };
-// </docs-tag name="workflows-fetch-handler">
-// </docs-tag name="full-workflow-example">
+
