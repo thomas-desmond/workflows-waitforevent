@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import ImageUpload from "./components/ImageUpload";
+import ImageUpload from "./components/image-upload/ImageUpload";
 import UploadsTable from "./components/UploadsTable";
 import { UploadedImage } from "./components/types";
 
