@@ -31,6 +31,14 @@ export default function ImageUpload({ onUploadComplete }: ImageUploadProps) {
         instanceId,
         aiTags: undefined
       });
+
+      // Stop polling if status is complete
+      if (data.status.status === 'complete') {
+        if (pollingIntervals.current[instanceId]) {
+          clearInterval(pollingIntervals.current[instanceId]);
+          delete pollingIntervals.current[instanceId];
+        }
+      }
     } catch (error) {
       console.error('Error polling status:', error);
     }

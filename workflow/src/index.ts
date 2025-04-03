@@ -23,31 +23,21 @@ export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
 		// Can access bindings on `this.env`
 		// Can access params on `event.payload`
-
 		const { image } = event.payload;
 
 		// Reconstruct File from serialized data
 		const uint8Array = new Uint8Array(image.data);
 		const file = new File([uint8Array], image.name, { type: image.type });
 
-		console.log('image', file);
-
-		const imageNameFromWorkflow = await step.do(
-			'Upload image to R2',
-			{
-				retries: {
-					limit: 2, // The total number of attempts
-					delay: '2 seconds', // Delay between each retry
-				},
-			},
-			async () => {
-				await this.env.workflow_demo_bucket.put(file.name, file);
-				return file.name; // Return the file name as the key
-			}
-		);
+		const imageNameFromWorkflow = await step.do('Upload image to R2', async () => {
+			await this.env.workflow_demo_bucket.put(file.name, file);
+			return file.name; // Return the file name as the key
+		});
 
 		await step.do('Insert image name into database', async () => {
-			await this.env.DB.prepare('INSERT INTO Images (ImageKey) VALUES (?)').bind(imageNameFromWorkflow).run();
+			await this.env.DB.prepare('INSERT INTO Images (ImageKey, InstanceID) VALUES (?, ?)')
+				.bind(imageNameFromWorkflow, event.instanceId)
+				.run();
 		});
 
 		const waitForApproval = await step.waitForEvent('request-ai-tagging-approval', {
@@ -55,39 +45,23 @@ export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 			timeout: '5 minute', // keep it short for the example!
 		});
 
-		// // You can optionally have a Workflow wait for additional data:
-		// // human approval or an external webhook or HTTP request, before progressing.
-		// // You can submit data via HTTP POST to /accounts/{account_id}/workflows/{workflow_name}/instances/{instance_id}/events/{eventName}
-		// const waitForApproval = await step.waitForEvent('request-approval', {
-		// 	type: 'approval', // define an optional key to switch on
-		// 	// timeout: '1 minute', // keep it short for the example!
-		// });
+		if (waitForApproval.payload.approved) {
+			const aiTags = await step.do('Generate AI tags', async () => {
+				const input = {
+					image: Array.from(uint8Array),
+					prompt:
+						'Give me 5 different single word description tags for the image. Return them as a comma separated list with only the tags, no other text.',
+					max_tokens: 512,
+				};
 
-		// const ipResponse = await step.do('some other step', async () => {
-		// 	let resp = await fetch('https://api.cloudflare.com/client/v4/ips');
-		// 	return await resp.json<any>();
-		// });
+				const response = await this.env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', input);
+				return response.description;
+			});
 
-		// // await step.sleep('wait on something', '1 minute');
-
-		// await step.do(
-		// 	'make a call to write that could maybe, just might, fail',
-		// 	// Define a retry strategy
-		// 	{
-		// 		retries: {
-		// 			limit: 5,
-		// 			delay: '5 second',
-		// 			backoff: 'exponential',
-		// 		},
-		// 		timeout: '15 minutes',
-		// 	},
-		// 	async () => {
-		// 		// Do stuff here, with access to the state from our previous steps
-		// 		if (Math.random() > 0.5) {
-		// 			throw new Error('API call to $STORAGE_SYSTEM failed');
-		// 		}
-		// 	}
-		// );
+			await step.do('Update DB with AI tags', async () => {
+				await this.env.DB.prepare('UPDATE Images SET ImageTags = ? WHERE InstanceID = ?').bind(aiTags, event.instanceId).run();
+			});
+		}
 	}
 }
 // </docs-tag name="workflow-entrypoint">
@@ -144,21 +118,6 @@ export default {
 					}
 				);
 
-				// Here you can:
-				// 1. Store the image in R2
-				// 2. Process the image
-				// 3. Start a workflow with the image
-				// For now, we'll just return a success response
-				// return new Response(JSON.stringify({
-				// 	success: true,
-				// 	filename: image.name,
-				// 	size: image.size,
-				// 	type: image.type
-				// }), {
-				// 	headers: {
-				// 		'Content-Type': 'application/json'
-				// 	}
-				// });
 			} catch (error) {
 				console.error('Error processing image upload:', error);
 				return new Response('Error processing image upload', { status: 500 });
@@ -203,7 +162,7 @@ export default {
 		const instance = await env.MY_WORKFLOW.create();
 		return Response.json({
 			id: instance.id,
-			details: await instance.status()
+			details: await instance.status(),
 		});
 	},
 };

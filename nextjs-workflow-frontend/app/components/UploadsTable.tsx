@@ -39,7 +39,7 @@ export default function UploadsTable({ uploadedImages }: UploadsTableProps) {
             <th className="px-8 py-4 text-left text-lg font-light text-white/80">FileName</th>
             <th className="px-8 py-4 text-left text-lg font-light text-white/80">Status</th>
             <th className="px-8 py-4 text-left text-lg font-light text-white/80">AI Image Tags</th>
-            <th className="px-8 py-4 text-left text-lg font-light text-white/80">Actions</th>
+            <th className="px-8 py-4 text-left text-lg font-light text-white/80">Should Generate Image Tags?</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/10">
