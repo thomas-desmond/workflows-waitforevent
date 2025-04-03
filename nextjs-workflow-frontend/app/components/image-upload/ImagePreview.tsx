@@ -22,7 +22,7 @@ export const ImagePreview = ({ previewUrl, onSelectImage }: ImagePreviewProps) =
     ) : (
       <div className="text-center space-y-4">
         <h2 className="text-4xl font-light text-white/80 mb-4">Upload Image Area</h2>
-        <p className="text-xl text-white/50 group-hover:text-white/60 transition-colors">Click or drag and drop to upload</p>
+        <p className="text-xl text-white/50 group-hover:text-white/60 transition-colors">Click to upload image</p>
       </div>
     )}
   </div>
