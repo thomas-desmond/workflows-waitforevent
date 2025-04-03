@@ -40,7 +40,7 @@ export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 		// You can submit data via HTTP POST to /accounts/{account_id}/workflows/{workflow_name}/instances/{instance_id}/events/{eventName}
 		const waitForApproval = await step.waitForEvent('request-approval', {
 			type: 'approval', // define an optional key to switch on
-			timeout: '1 minute', // keep it short for the example!
+			// timeout: '1 minute', // keep it short for the example!
 		});
 
 		const apiResponse = await step.do('some other step', async () => {
@@ -48,7 +48,7 @@ export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 			return await resp.json<any>();
 		});
 
-		await step.sleep('wait on something', '1 minute');
+		// await step.sleep('wait on something', '1 minute');
 
 		await step.do(
 			'make a call to write that could maybe, just might, fail',
