@@ -11,12 +11,12 @@ export async function POST(request: Request) {
     const { instanceId, approved } = body;
 
     const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/4ada3fc2e7dcf09a09749af670622778/workflows/workflows-starter/instances/${instanceId}/events/approval-for-ai-tagging`,
+      `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/workflows/workflows-starter/instances/${instanceId}/events/approval-for-ai-tagging`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer 1y7FHYKatU4cpW_BVW2ytS15WidlEujP2gxpTCjv'
+          'Authorization': `Bearer ${process.env.TOKEN}`
         },
         body: JSON.stringify({ approved })
       }
