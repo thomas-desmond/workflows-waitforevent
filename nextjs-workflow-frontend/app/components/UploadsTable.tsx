@@ -6,9 +6,12 @@ interface UploadsTableProps {
 }
 
 export default function UploadsTable({ uploadedImages }: UploadsTableProps) {
-  const [aiTagStates, setAiTagStates] = useState<{[key: string]: 'pending' | 'sent' | null}>({});
+  const [aiTagStates, setAiTagStates] = useState<{[key: string]: 'pending' | 'sent' | 'sending' | null}>({});
 
   const handleAiTagRequest = async (instanceId: string, wantTags: boolean) => {
+    // Set loading state immediately
+    setAiTagStates(prev => ({ ...prev, [instanceId]: 'sending' }));
+    
     try {
       const response = await fetch('/api/workflow', {
         method: 'POST',
@@ -28,6 +31,8 @@ export default function UploadsTable({ uploadedImages }: UploadsTableProps) {
       setAiTagStates(prev => ({ ...prev, [instanceId]: 'sent' }));
     } catch (error) {
       console.error('Error sending AI tag request:', error);
+      // Reset state on error
+      setAiTagStates(prev => ({ ...prev, [instanceId]: null }));
     }
   };
 
@@ -62,6 +67,8 @@ export default function UploadsTable({ uploadedImages }: UploadsTableProps) {
               <td className="px-8 py-6">
                 {aiTagStates[image.instanceId] === 'sent' ? (
                   <span className="text-green-400">Event sent to workflow</span>
+                ) : aiTagStates[image.instanceId] === 'sending' ? (
+                  <span className="text-blue-400">Sending event to workflow...</span>
                 ) : (
                   <div className="flex gap-2">
                     <button
