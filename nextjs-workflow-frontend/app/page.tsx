@@ -4,6 +4,7 @@ import { useState } from 'react';
 import ImageUpload from "./components/image-upload/ImageUpload";
 import UploadsTable from "./components/UploadsTable";
 import { UploadedImage } from "./components/types";
+import ArchitectureDiagram from "./components/ArchitectureDiagram";
 
 export default function Home() {
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
@@ -28,6 +29,7 @@ export default function Home() {
       <h1 className="text-5xl font-light text-white/90 text-center">Cloudflare Workflows with waitForEvent API</h1>
       <ImageUpload onUploadComplete={handleImageUpdate} />
       <UploadsTable uploadedImages={uploadedImages} />
+      <ArchitectureDiagram />
     </div>
   );
 }
