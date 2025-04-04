@@ -1,4 +1,5 @@
 import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:workers';
+import { nanoid } from 'nanoid'
 
 type Env = {
 	// Add your bindings here, e.g. Workers KV, D1, Workers AI, etc.
@@ -10,11 +11,7 @@ type Env = {
 
 // User-defined params passed to your workflow
 type Params = {
-	image: {
-		data: number[];
-		name: string;
-		type: string;
-	};
+	imageKey: string;
 };
 
 const corsHeaders = {
@@ -28,20 +25,11 @@ export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
 		// Can access bindings on `this.env`
 		// Can access params on `event.payload`
-		const { image } = event.payload;
-
-		// Reconstruct File from serialized data
-		const uint8Array = new Uint8Array(image.data);
-		const file = new File([uint8Array], image.name, { type: image.type });
-
-		const imageNameFromWorkflow = await step.do('Upload image to R2', async () => {
-			await this.env.workflow_demo_bucket.put(file.name, file);
-			return file.name; // Return the file name as the key
-		});
+		const { imageKey } = event.payload;
 
 		await step.do('Insert image name into database', async () => {
 			await this.env.DB.prepare('INSERT INTO Images (ImageKey, InstanceID) VALUES (?, ?)')
-				.bind(imageNameFromWorkflow, event.instanceId)
+				.bind(imageKey, event.instanceId)
 				.run();
 		});
 
@@ -52,6 +40,11 @@ export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 
 		if (waitForApproval.payload.approved) {
 			const aiTags = await step.do('Generate AI tags', async () => {
+				const image = await this.env.workflow_demo_bucket.get(imageKey);
+				if (!image) throw new Error('Image not found');
+				const arrayBuffer = await image.arrayBuffer();
+				const uint8Array = new Uint8Array(arrayBuffer);
+
 				const input = {
 					image: Array.from(uint8Array),
 					prompt:
@@ -92,19 +85,15 @@ export default {
 				if (!image || !(image instanceof File)) {
 					return new Response('Missing or invalid image file', { status: 400 });
 				}
+				const imageKey = nanoid()
+				await env.workflow_demo_bucket.put(imageKey, image);
 
 				// Convert File to serializable format
-				const arrayBuffer = await image.arrayBuffer();
-				const uint8Array = new Uint8Array(arrayBuffer);
 
 				// Spawn a new instance and return the ID and status
 				const instance = await env.MY_WORKFLOW.create({
 					params: {
-						image: {
-							data: Array.from(uint8Array),
-							name: image.name,
-							type: image.type,
-						},
+						imageKey: imageKey
 					},
 				});
 				return Response.json(
