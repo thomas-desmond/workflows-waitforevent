@@ -25,6 +25,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-12 p-12 max-w-7xl mx-auto bg-[#111] min-h-screen text-gray-200">
+      <h1 className="text-5xl font-light text-white/90 text-center">Cloudflare Workflows with waitForEvent API</h1>
       <ImageUpload onUploadComplete={handleImageUpdate} />
       <UploadsTable uploadedImages={uploadedImages} />
     </div>

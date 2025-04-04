@@ -7,7 +7,7 @@ interface ImagePreviewProps {
 
 export const ImagePreview = ({ previewUrl, onSelectImage }: ImagePreviewProps) => (
   <div 
-    className="bg-white/5 backdrop-blur-sm rounded-3xl p-12 h-80 flex flex-col items-center justify-center cursor-pointer border-2 border-white/10 hover:border-white/20 transition-all group"
+    className="bg-white/5 backdrop-blur-sm rounded-3xl p-4 h-60 flex flex-col items-center justify-center cursor-pointer border-2 border-white/10 hover:border-white/20 transition-all group"
     onClick={onSelectImage}
   >
     {previewUrl ? (
