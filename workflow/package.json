@@ -9,11 +9,11 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@cloudflare/workers-types": "^4.20250402.0",
+    "@cloudflare/workers-types": "^4.20250407.0",
     "nanoid": "^5.1.5"
   },
   "devDependencies": {
     "typescript": "^5.0.4",
-    "wrangler": "^4.7.0"
+    "wrangler": "^4.8.0"
   }
 }

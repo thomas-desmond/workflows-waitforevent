@@ -1,9 +1,9 @@
 import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:workers';
-import { nanoid } from 'nanoid'
+import { nanoid } from 'nanoid';
 
 type Env = {
 	// Add your bindings here, e.g. Workers KV, D1, Workers AI, etc.
-	MY_WORKFLOW: Workflow;
+	MY_WORKFLOW: any; // Using any temporarily since we know the methods exist
 	workflow_demo_bucket: R2Bucket;
 	DB: D1Database;
 	AI: Ai;
@@ -20,22 +20,22 @@ const corsHeaders = {
 	'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// <docs-tag name="workflow-entrypoint">
+interface RequestBody {
+	instanceId: string;
+	approved: boolean;
+}
+
 export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
-		// Can access bindings on `this.env`
-		// Can access params on `event.payload`
 		const { imageKey } = event.payload;
 
 		await step.do('Insert image name into database', async () => {
-			await this.env.DB.prepare('INSERT INTO Images (ImageKey, InstanceID) VALUES (?, ?)')
-				.bind(imageKey, event.instanceId)
-				.run();
+			await this.env.DB.prepare('INSERT INTO Images (ImageKey, InstanceID) VALUES (?, ?)').bind(imageKey, event.instanceId).run();
 		});
 
-		const waitForApproval = await step.waitForEvent('request-ai-tagging-approval', {
-			type: 'approval-for-ai-tagging', // define an optional key to switch on
-			timeout: '5 minute', // keep it short for the example!
+		const waitForApproval = await step.waitForEvent('Wait for AI Image tagging approval', {
+			type: 'approval-for-ai-tagging',
+			timeout: '5 minute',
 		});
 
 		if (waitForApproval.payload.approved) {
@@ -62,12 +62,77 @@ export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 		}
 	}
 }
-// </docs-tag name="workflow-entrypoint">
 
-// <docs-tag name="workflows-fetch-handler">
 export default {
 	async fetch(req: Request, env: Env): Promise<Response> {
 		const url = new URL(req.url);
+
+		// Handle /tags endpoint
+		if (url.pathname === '/tags') {
+			const instanceId = url.searchParams.get('instanceId');
+			if (!instanceId) {
+				return new Response('Missing instanceId parameter', {
+					status: 400,
+					headers: corsHeaders,
+				});
+			}
+
+			try {
+				const result = await env.DB.prepare('SELECT ImageTags FROM Images WHERE InstanceID = ?').bind(instanceId).first();
+
+				return Response.json(
+					{
+						instanceId,
+						tags: result?.ImageTags || null,
+					},
+					{
+						headers: corsHeaders,
+					}
+				);
+			} catch (error) {
+				console.error('Error fetching tags:', error);
+				return new Response('Error fetching tags', {
+					status: 500,
+					headers: corsHeaders,
+				});
+			}
+		}
+
+		// Handle /approval-for-ai-tagging endpoint
+		if (url.pathname === '/approval-for-ai-tagging') {
+			if (req.method !== 'POST') {
+				return new Response('Method not allowed', {
+					status: 405,
+					headers: corsHeaders,
+				});
+			}
+
+			try {
+				const body = (await req.json()) as RequestBody;
+				const { instanceId, approved } = body;
+
+				if (!instanceId || typeof approved !== 'boolean') {
+					return new Response('Missing or invalid parameters', {
+						status: 400,
+						headers: corsHeaders,
+					});
+				}
+
+				const instance = await env.MY_WORKFLOW.get(instanceId);
+				await instance.sendEvent({
+					type: 'approval-for-ai-tagging',
+					payload: { approved },
+				});
+
+				return Response.json({ success: true }, { headers: corsHeaders });
+			} catch (error) {
+				console.error('Error processing approval:', error);
+				return new Response('Error processing approval', {
+					status: 500,
+					headers: corsHeaders,
+				});
+			}
+		}
 
 		// Handle Creating new image Workflow
 		if (req.method === 'POST') {
@@ -85,7 +150,7 @@ export default {
 				if (!image || !(image instanceof File)) {
 					return new Response('Missing or invalid image file', { status: 400 });
 				}
-				const imageKey = nanoid()
+				const imageKey = nanoid();
 				await env.workflow_demo_bucket.put(imageKey, image);
 
 				// Convert File to serializable format
@@ -93,7 +158,7 @@ export default {
 				// Spawn a new instance and return the ID and status
 				const instance = await env.MY_WORKFLOW.create({
 					params: {
-						imageKey: imageKey
+						imageKey: imageKey,
 					},
 				});
 				return Response.json(
@@ -107,7 +172,6 @@ export default {
 						headers: corsHeaders,
 					}
 				);
-
 			} catch (error) {
 				console.error('Error processing image upload:', error);
 				return new Response('Error processing image upload', { status: 500 });
@@ -125,37 +189,6 @@ export default {
 				headers: corsHeaders,
 			});
 		}
-		if (url.pathname === '/tags') {
-			const instanceId = url.searchParams.get('instanceId');
-			if (!instanceId) {
-				return new Response('Missing instanceId parameter', {
-					status: 400,
-					headers: corsHeaders
-				});
-			}
-
-			try {
-				const result = await env.DB.prepare('SELECT ImageTags FROM Images WHERE InstanceID = ?')
-					.bind(instanceId)
-					.first();
-
-				return Response.json(
-					{
-						instanceId,
-						tags: result?.ImageTags || null
-					},
-					{
-						headers: corsHeaders
-					}
-				);
-			} catch (error) {
-				console.error('Error fetching tags:', error);
-				return new Response('Error fetching tags', {
-					status: 500,
-					headers: corsHeaders
-				});
-			}
-		}
 
 		// Get the status of an existing instance, if provided
 		const id = url.searchParams.get('instanceId');
@@ -171,10 +204,6 @@ export default {
 			);
 		}
 
-		// Handle /tags endpoint
-
-
 		return new Response('Invalid Request', { status: 400 });
 	},
 };
-
