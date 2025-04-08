@@ -62,6 +62,11 @@ The `waitForEvent` API is a powerful feature of Cloudflare Workflows that allows
    ```bash
    npm run deploy
    ```
+7. Update `constants.ts` with your Workflow base url and redeploy
+   ```txt
+    export const API_BASE_URL = '<your-workflow-url>';
+   ```
+
 
 ## Learn More
 
