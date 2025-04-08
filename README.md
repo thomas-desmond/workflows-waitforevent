@@ -1,85 +1,71 @@
-# Cloudflare Workflows
+# Cloudflare Workflows - Human-in-the-Loop with waitForEvent
 
-This is the starter template for Workflows, a durable execution engine built on top of Cloudflare Workers.
+This template demonstrates how to build human-in-the-loop workflows using Cloudflare Workflows' `waitForEvent` API. It enables you to create durable, long-running workflows that can pause execution and wait for human input or external events before continuing.
 
-* Clone this repository to get started with Workflows
-* Read the [Workflows announcement blog](https://blog.cloudflare.com/building-workflows-durable-execution-on-workers/) to learn more about what Workflows is and how to build durable, multi-step applications using the Workflows model.
-* Review the [Workflows developer documentation](https://developers.cloudflare.com/workflows/) to dive deeper into the Workflows API and how it works.
+## Repository Structure
 
-## Usage
+This is a monorepo containing:
+- `/nextjs-workflow-frontend`: Next.js application for the frontend interface
+- `/workflow`: Cloudflare Workflow implementation
 
-**Visit the [get started guide](https://developers.cloudflare.com/workflows/get-started/guide/) for Workflows to create and deploy your first Workflow.**
+## What is waitForEvent?
 
-### Deploy it
+The `waitForEvent` API is a powerful feature of Cloudflare Workflows that allows you to:
+* Pause workflow execution indefinitely until a specific event is received
+* Create human-in-the-loop workflows where manual approval or input is required
+* Build event-driven applications that respond to external triggers
+* Implement complex approval chains and decision points in your workflows
 
-Deploy it to your own Cloudflare account directly:
+## Getting Started
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/workflows-starter)
+**Visit the [get started guide](https://developers.cloudflare.com/workflows/get-started/guide/) for Workflows to create and deploy your first workflow.**
 
-You can also create a project using this template by using `npm create cloudflare@latest`:
+## Deployment
 
-```sh
-npm create cloudflare@latest workflows-starter -- --template "cloudflare/workflows-starter"
-```
+### Frontend Deployment
+1. Navigate to the frontend directory:
+   ```bash
+   cd nextjs-workflow-frontend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Build the application:
+   ```bash
+   npm run build
+   ```
+4. Deploy to Cloudflare:
+   ```bash
+   npm run deploy
+   ``` 
 
-This will automatically clone this repository, install the dependencies, and prompt you to optionally deploy:
+### Workflow Deployment
+1. Navigate to the workflow directory:
+   ```bash
+   cd workflow
+   ```
+2. Create an R2 bucket, update `wrangler.jsonc` with the output from:
+   ```bash
+   npx wrangler r2 bucket create workflow-demo-bucket
+   ```
+3. Create a D1 database, update `wrangler.jsonc` with the output from:
+   ```bash
+   npx wrangler d1 create workflow-demo
+   ```
 
-```sh
-╭ Create an application with Cloudflare Step 1 of 3
-│
-├ In which directory do you want to create your application?
-│ dir ./workflows-tutorial
-│
-├ What would you like to start with?
-│ category Template from a GitHub repo
-│
-├ What's the url of git repo containing the template you'd like to use?
-│ repository cloudflare/workflows-starter
-│
-├ Cloning template from: cloudflare/workflows-starter
-│
-├ template cloned and validated
-│
-├ Copying template files
-│ files copied to project directory
-│
-├ Installing dependencies
-│ installed via `npm install`
-│
-╰ Application created
+5. Apply the database schema (run in the /workflow folder):
+   ```bash
+   npx wrangler d1 execute workflow-demo --remote --file=./db.sql
+   ```
+6. Deploy the workflow using Wrangler:
+   ```bash
+   npm run deploy
+   ```
 
-╭ Configuring your application for Cloudflare Step 2 of 3
-│
-├ Installing @cloudflare/workers-types
-│ installed via npm
-│
-├ Adding latest types to `tsconfig.json`
-│ added @cloudflare/workers-types/2023-07-01
-│
-├ Do you want to use git for version control?
-│ yes git
-│
-├ Initializing git repo
-│ initialized git
-│
-├ Committing new files
-│ git commit
-│
-╰ Application configured
+## Learn More
 
-╭ Deploy with Cloudflare Step 3 of 3
-│
-├ Do you want to deploy your application?
-│ no deploy via `npm run deploy`
-│
-╰ Done
+* Read the [Workflows GA announcement blog](https://blog.cloudflare.com/workflows-ga-production-ready-durable-execution/) to understand the core concepts
+* Review the [Workflows developer documentation](https://developers.cloudflare.com/workflows/) for detailed API reference and examples
+* Check out the [waitForEvent API documentation](https://developers.cloudflare.com/workflows/apis/wait-for-event/) for specific details about implementing human-in-the-loop workflows
 
-────────────────────────────────────────────────────────────
-🎉  SUCCESS  Application created successfully!
-```
-
-The [Workflows documentation](https://developers.cloudflare.com/workflows/) contains examples, the API reference, and architecture guidance.
-
-## License
-
-Copyright 2024, Cloudflare. Apache 2.0 licensed. See the LICENSE file for details.
