@@ -1,5 +1,4 @@
 # Cloudflare Workflows - Human-in-the-Loop with waitForEvent
-
 This template demonstrates how to build human-in-the-loop workflows using Cloudflare Workflows' `waitForEvent` API. It enables you to create durable, long-running workflows that can pause execution and wait for human input or external events before continuing.
 
 ## Repository Structure
@@ -66,7 +65,8 @@ The `waitForEvent` API is a powerful feature of Cloudflare Workflows that allows
    ```txt
     export const API_BASE_URL = '<your-workflow-url>';
    ```
-
+## Reference Architecture
+![workflow-diagram](https://github.com/user-attachments/assets/ffee1de3-a5a0-4727-bae0-cfbc665da308)
 
 ## Learn More
 
