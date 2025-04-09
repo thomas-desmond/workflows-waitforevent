@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { API_BASE_URL } from "@/app/components/image-upload/constants";
+import { NextResponse } from "next/server";
 
 interface RequestBody {
   instanceId: string;
@@ -7,31 +8,30 @@ interface RequestBody {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as RequestBody;
+    const body = (await request.json()) as RequestBody;
     const { instanceId, approved } = body;
 
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/workflows/workflows-starter/instances/${instanceId}/events/approval-for-ai-tagging`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.TOKEN}`
-        },
-        body: JSON.stringify({ approved })
-      }
-    );
+    console.log("data ", instanceId, approved)
+
+    const response = await fetch(`${API_BASE_URL}/approval-for-ai-tagging`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ instanceId, approved }),
+    });
 
     if (!response.ok) {
-      throw new Error('Failed to send AI tag request');
+      console.error('Error response:', await response.text());
+      throw new Error("Failed to send AI tag request");
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error in workflow API route:', error);
+    console.error("Error in workflow API route:", error);
     return NextResponse.json(
-      { error: 'Failed to process request' },
+      { error: "Failed to process request" },
       { status: 500 }
     );
   }
-} 
+}
