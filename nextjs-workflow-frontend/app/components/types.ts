@@ -16,11 +16,9 @@ export interface UploadResponse {
 }
 
 export interface StatusResponse {
-  status: {
-    status: string;
-    error?: string;
-    output?: {
-      [key: string]: unknown;
-    };
+  status: string;
+  error?: string;
+  output?: {
+    [key: string]: unknown;
   };
-} 
+}

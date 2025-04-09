@@ -15,14 +15,14 @@ export const useStatusPolling = (onStatusUpdate: (image: UploadedImage) => void)
 
       onStatusUpdate({
         fileName,
-        status: data.status.status,
+        status: data.status,
         instanceId,
         aiTags: undefined
       });
 
-      if (data.status.status === 'complete') {
+      if (data.status === 'complete') {
         await fetchAITags(instanceId, fileName);
-      } else if (data.status.error) {
+      } else if (data.error) {
         handleError(instanceId, fileName);
       }
     } catch (error) {
@@ -38,6 +38,7 @@ export const useStatusPolling = (onStatusUpdate: (image: UploadedImage) => void)
         throw new Error(`Failed to fetch tags: ${tagsResponse.status}`);
       }
       const tagsData = await tagsResponse.json() as { tags: string };
+      console.log('Tags response:', tagsData);
       
       onStatusUpdate({
         fileName,

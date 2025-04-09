@@ -5,7 +5,7 @@ export class ResponseHandler {
   static success<T>(data: T, status: number = HTTP_STATUS.OK): Response {
     const response: ApiResponse<T> = {
       success: true,
-      data,
+      ...data,
     };
     return Response.json(response, {
       status,
