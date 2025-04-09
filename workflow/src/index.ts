@@ -1,36 +1,28 @@
 import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:workers';
 import { nanoid } from 'nanoid';
+import { DatabaseService } from './services/database';
+import { ResponseHandler } from './utils/response';
+import {
+	ROUTES,
+	AI_CONFIG
+} from './config';
+import {
+	Env,
+	WorkflowParams,
+	ApprovalRequest,
+	TagsResponse,
+	WorkflowStatus
+} from './types';
 
-type Env = {
-	// Add your bindings here, e.g. Workers KV, D1, Workers AI, etc.
-	MY_WORKFLOW: any; // Using any temporarily since we know the methods exist
-	workflow_demo_bucket: R2Bucket;
-	DB: D1Database;
-	AI: Ai;
-};
+export class MyWorkflow extends WorkflowEntrypoint<Env, WorkflowParams> {
+	private db!: DatabaseService;
 
-// User-defined params passed to your workflow
-type Params = {
-	imageKey: string;
-};
-
-const corsHeaders = {
-	'Access-Control-Allow-Origin': '*',
-	'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-	'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-interface RequestBody {
-	instanceId: string;
-	approved: boolean;
-}
-
-export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
-	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
+	async run(event: WorkflowEvent<WorkflowParams>, step: WorkflowStep) {
+		this.db = new DatabaseService(this.env.DB);
 		const { imageKey } = event.payload;
 
 		await step.do('Insert image name into database', async () => {
-			await this.env.DB.prepare('INSERT INTO Images (ImageKey, InstanceID) VALUES (?, ?)').bind(imageKey, event.instanceId).run();
+			await this.db.insertImage(imageKey, event.instanceId);
 		});
 
 		const waitForApproval = await step.waitForEvent('Wait for AI Image tagging approval', {
@@ -38,26 +30,27 @@ export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 			timeout: '5 minute',
 		});
 
-		if (waitForApproval.payload.approved) {
+		const approvalPayload = waitForApproval.payload as ApprovalRequest;
+		if (approvalPayload?.approved) {
 			const aiTags = await step.do('Generate AI tags', async () => {
 				const image = await this.env.workflow_demo_bucket.get(imageKey);
 				if (!image) throw new Error('Image not found');
+
 				const arrayBuffer = await image.arrayBuffer();
 				const uint8Array = new Uint8Array(arrayBuffer);
 
 				const input = {
 					image: Array.from(uint8Array),
-					prompt:
-						'Give me 5 different single word description tags for the image. Return them as a comma separated list with only the tags, no other text.',
-					max_tokens: 512,
+					prompt: AI_CONFIG.PROMPT,
+					max_tokens: AI_CONFIG.MAX_TOKENS,
 				};
 
-				const response = await this.env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', input);
+				const response = await this.env.AI.run(AI_CONFIG.MODEL, input);
 				return response.description;
 			});
 
 			await step.do('Update DB with AI tags', async () => {
-				await this.env.DB.prepare('UPDATE Images SET ImageTags = ? WHERE InstanceID = ?').bind(aiTags, event.instanceId).run();
+				await this.db.updateImageTags(event.instanceId, aiTags);
 			});
 		}
 	}
@@ -66,144 +59,116 @@ export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 export default {
 	async fetch(req: Request, env: Env): Promise<Response> {
 		const url = new URL(req.url);
+		const db = new DatabaseService(env.DB);
+
+		// Handle OPTIONS request for CORS preflight
+		if (req.method === 'OPTIONS') {
+			return ResponseHandler.corsPreflight();
+		}
 
 		// Handle /tags endpoint
-		if (url.pathname === '/tags') {
+		if (url.pathname === ROUTES.TAGS) {
 			const instanceId = url.searchParams.get('instanceId');
 			if (!instanceId) {
-				return new Response('Missing instanceId parameter', {
-					status: 400,
-					headers: corsHeaders,
-				});
+				return ResponseHandler.badRequest('Missing instanceId parameter');
 			}
 
 			try {
-				const result = await env.DB.prepare('SELECT ImageTags FROM Images WHERE InstanceID = ?').bind(instanceId).first();
-
-				return Response.json(
-					{
-						instanceId,
-						tags: result?.ImageTags || null,
-					},
-					{
-						headers: corsHeaders,
-					}
-				);
+				const tags = await db.getImageTags(instanceId);
+				return ResponseHandler.success<TagsResponse>({
+					instanceId,
+					tags,
+				});
 			} catch (error) {
 				console.error('Error fetching tags:', error);
-				return new Response('Error fetching tags', {
-					status: 500,
-					headers: corsHeaders,
-				});
+				return ResponseHandler.error('Error fetching tags');
 			}
 		}
 
 		// Handle /approval-for-ai-tagging endpoint
-		if (url.pathname === '/approval-for-ai-tagging') {
+		if (url.pathname === ROUTES.APPROVAL) {
 			if (req.method !== 'POST') {
-				return new Response('Method not allowed', {
-					status: 405,
-					headers: corsHeaders,
-				});
+				return ResponseHandler.methodNotAllowed();
 			}
 
 			try {
-				const body = (await req.json()) as RequestBody;
+				const body = await req.json() as ApprovalRequest;
 				const { instanceId, approved } = body;
 
 				if (!instanceId || typeof approved !== 'boolean') {
-					return new Response('Missing or invalid parameters', {
-						status: 400,
-						headers: corsHeaders,
-					});
+					return ResponseHandler.badRequest('Missing or invalid parameters');
 				}
 
 				const instance = await env.MY_WORKFLOW.get(instanceId);
 				await instance.sendEvent({
-					type: 'approval-for-ai-tagging',
+					type: "approval-for-ai-tagging",
 					payload: { approved },
 				});
 
-				return Response.json({ success: true }, { headers: corsHeaders });
+				return ResponseHandler.success({ success: true });
 			} catch (error) {
 				console.error('Error processing approval:', error);
-				return new Response('Error processing approval', {
-					status: 500,
-					headers: corsHeaders,
-				});
+				return ResponseHandler.error('Error processing approval');
 			}
 		}
 
 		// Handle Creating new image Workflow
-		if (req.method === 'POST') {
+		if (req.method === 'POST' && url.pathname === '/') {
 			try {
-				// Check if the request contains form data
 				const contentType = req.headers.get('content-type');
 				if (!contentType || !contentType.includes('multipart/form-data')) {
-					return new Response('Invalid content type. Expected multipart/form-data', { status: 400 });
+					return ResponseHandler.badRequest('Invalid content type. Expected multipart/form-data');
 				}
 
-				// Parse the form data
 				const formData = await req.formData();
 				const image = formData.get('image') as File;
 
 				if (!image || !(image instanceof File)) {
-					return new Response('Missing or invalid image file', { status: 400 });
+					return ResponseHandler.badRequest('Missing or invalid image file');
 				}
+
 				const imageKey = nanoid();
 				await env.workflow_demo_bucket.put(imageKey, image);
 
-				// Convert File to serializable format
-
-				// Spawn a new instance and return the ID and status
 				const instance = await env.MY_WORKFLOW.create({
-					params: {
-						imageKey: imageKey,
-					},
+					params: { imageKey },
 				});
-				return Response.json(
-					{
-						id: instance.id,
-						details: await instance.status(),
-						success: true,
-						message: 'Image upload started successfully',
-					},
-					{
-						headers: corsHeaders,
-					}
-				);
+
+				return ResponseHandler.success<WorkflowStatus>({
+					id: instance.id,
+					details: await instance.status(),
+					success: true,
+					message: 'Image upload started successfully',
+				});
 			} catch (error) {
 				console.error('Error processing image upload:', error);
-				return new Response('Error processing image upload', { status: 500 });
+				return ResponseHandler.error('Error processing image upload');
 			}
 		}
 
-		// Handle other routes
+		// Get the status of an existing instance
+		if (req.method === 'GET' && url.pathname === '/') {
+			const instanceId = url.searchParams.get('instanceId');
+			if (!instanceId) {
+				return ResponseHandler.badRequest('Missing instanceId parameter');
+			}
+
+			try {
+				const instance = await env.MY_WORKFLOW.get(instanceId);
+				const status = await instance.status();
+				return ResponseHandler.success<WorkflowStatus>(status);
+			} catch (error) {
+				console.error('Error getting workflow status:', error);
+				return ResponseHandler.error('Error getting workflow status');
+			}
+		}
+
+		// Handle favicon requests
 		if (url.pathname.startsWith('/favicon')) {
-			return Response.json({}, { status: 404 });
+			return ResponseHandler.notFound();
 		}
 
-		// Handle OPTIONS request for CORS preflight
-		if (req.method === 'OPTIONS') {
-			return new Response(null, {
-				headers: corsHeaders,
-			});
-		}
 
-		// Get the status of an existing instance, if provided
-		const id = url.searchParams.get('instanceId');
-		if (id) {
-			const instance = await env.MY_WORKFLOW.get(id);
-			return Response.json(
-				{
-					status: await instance.status(),
-				},
-				{
-					headers: corsHeaders,
-				}
-			);
-		}
-
-		return new Response('Invalid Request', { status: 400 });
+		return ResponseHandler.badRequest('Invalid Request');
 	},
 };
